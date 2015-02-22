@@ -1,0 +1,111 @@
+---
+title: "Using Prediction Models for Human Activity Recognition (Practical Machine Learning Project)"
+author: "Yudhisthir Paudel"
+date: "Sunday, February 22, 2015"
+output:
+  html_document:
+    fig_caption: yes
+    smart: no
+    toc: yes
+---
+##I. Introduction
+Human activity recognition(HAR) research and development, using various sensor devices has been growing in recent days. For the purpose of this class project for the Coursera Practical Machine Learning class, data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants was provided. This data consisted of the participents performing barbell lifts correctly and incorrectly in 5 different ways. The goal is to use the training data to predict the quality of their performance in the test data.
+
+```{r,echo=FALSE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(e1071)
+```
+
+```{r,echo=FALSE}
+setwd("C:/Users/Yudhisthir/Documents/MOOC_DataScienceModule/9_MachineLearning")
+```
+
+##II. Getting Data
+First the data was downloaded from the source.
+```{r}
+  train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  
+  
+  if(!file.exists("./ProjData/pml-training.csv")){
+    download.file(url = train_url, destfile = "./ProjData/pml-training.csv")
+  }
+  if(!file.exists("./ProjData/pml-testing.csv")){
+    download.file(url = test_url, destfile = "./ProjData/pml-testing.csv")
+  }
+```
+Next, the data was read into R from the local working directory.
+Any NAs, or blank entries were set to NA, so that they can removed later.
+```{r}
+  training <- read.csv("./ProjData/pml-training.csv",na.strings=c(""," ", "NA","#DIV/0!"))
+  testing <- read.csv("./ProjData/pml-testing.csv",na.strings=c(""," ","NA","#DIV/0!"))
+
+```
+
+##III. Cleaning Data
+There are a number of columns, that should not be used as prediction variables. Therefore, columns 1 through 6 were removed from both the training and testing data.
+
+Next, the data contained many columns with NA values, it is important to remove those to get
+a good prediction model. In this work, any column containing 25% or more NA values are removed
+from consideration in the prediction model.
+```{r}
+  #Removing Irrelevante variables (data descriptors)
+  training  <-training[,-c(1:6)]
+  testing <-testing[,-c(1:6)]
+
+  # Delete columns with more than 25% of data missing/ "NAs"
+  training <- training[,colSums(is.na(training)) < nrow(training)*0.75]
+  testing <- testing[,colSums(is.na(testing)) < nrow(testing)*0.75]
+```
+
+##IV. Building Models
+Now that the data is cleaned and trimmed with only desired predictors left, the training data-set is furthur splitted into 60% sub-training and 40% sub-testing data for the purpose of validating the model before using it with the actual test data (and submission).
+```{r}
+  #Creating training and testing data from within given training data
+    Training_cases <- createDataPartition(y=training$classe, p=0.60, list=FALSE)
+    trainingSample <- training[Training_cases, ] 
+    testingSample <- training[-Training_cases, ]
+```
+Two different approaches were taken to fit the model.
+
+###1. Decision Tree Model
+```{r}
+    dtModel <- rpart(classe ~ ., data=trainingSample, method="class")
+```
+Next, predicting the results using testing subsample for verification purpose.
+```{r}
+    # Predicting
+    dtPredict <- predict(dtModel, testingSample, type = "class")
+    confusionMatrix(dtPredict, testingSample$classe)
+```
+At 0.7413 accuray, we would like to check if Random Forest Model will provide any better results.
+
+###2. Random forest model
+Here, Random Forest Model is used on the training sample data to build a prediction model.
+```{r}
+    rfModel <- randomForest(classe ~. , data=trainingSample, method="class")
+```
+
+Next, predicting the results using testing subsample for verification purpose.
+```{r}
+    #Predicting
+    rfPredict <- predict(rfModel, testingSample, type = "class")
+    confusionMatrix(rfPredict, testingSample$classe)
+```
+Since the Random Forest Model has very high accuray of 0.9971, we can confidently chose this as the best predicton model.
+
+##V. Conclusion
+Accuray for the Random Forest Model is 0.9971 vs. that of Decision Tree Model at 0.7413.
+95% confidence interval for these models were (0.9956, 0.9981) vs. (0.7314, 0.7509) respectively. Therefore, Random Forest Model is concluded to be the best predicting model for the problem with an expected out-of-sample error to be 0.003 (3%). With such specificity, we can expect very close to 100% correct prediction for the test case of 20 samples.
+
+##VI. Final Testing (Submission) with 20 test cases
+```{r}
+    finalPredict <- predict(rfModel, testing, type="class")
+```
+
+## References
+The original data came from the following source:
+http://groupware.les.inf.puc-rio.br/har
